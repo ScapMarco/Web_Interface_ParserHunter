@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Results</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa; /* Light background for better contrast */
+        }
+        .table th, .table td {
+            text-align: center; /* Center align table content */
+        }
+        .footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            text-align: center;
+            padding: 10px;
+            background-color: #343a40;
+            color: white;
+        }
+    </style>
+    <script>
+        $(document).ready(function() {
+            $('#resultsTable').DataTable({
+                "order": [] // You can specify default ordering here if needed
+            });
+        });
+
+        // Default code snippets
+        const defaultCodeCFGFast = 
+`import angr
+import claripy
+
+# Load the binary executable
+binary_path = "./Binaries/temp_uploaded_file" 
+project = angr.Project(binary_path, auto_load_libs=False)
+
+# Specify the address of the function you want to analyze
+function_address = 0x12345678  # Replace with your function's hex address
+
+# Retrieve the function from the project's CFG
+cfg = project.analyses.CFGFast()
+function = cfg.functions.get(function_address)
+
+if function is None:
+    print(f"Function at address {hex(function_address)} not found in the binary.")
+else:
+    print(f"Analyzing function at address: {hex(function_address)}")`;
+
+        const defaultCodeCFGEmulated = 
+`import angr
+import claripy
+
+# Load the binary executable
+binary_path = "./Binaries/temp_uploaded_file" 
+project = angr.Project(binary_path, auto_load_libs=False)
+
+# Specify the address of the function you want to analyze
+function_address = 0x12345678  # Replace with your function's hex address
+
+# Retrieve the function from the project's CFG
+cfg = project.analyses.CFGEmulated() 
+function = cfg.functions.get(function_address)
+
+if function is None:
+    print(f"Function at address {hex(function_address)} not found in the binary.")
+else:
+    print(f"Analyzing function at address: {hex(function_address)}")`;
+
+        const functionInfoCode = 
+`# Display function disassembly
+print("Function Disassembly:")
+for block in function.blocks:
+    print(f"Block at address {hex(block.addr)}:")
+    print(block.disassembly)
+
+# Generate a control-flow graph (CFG) and print basic information
+print("\\nControl Flow Graph (CFG) for the function:")
+for node in cfg.graph.nodes():
+    if node.function_address == function_address:
+        print(f"Node at address {hex(node.addr)}")`;
+
+        const symbolicExecutionCode = 
+`# Symbolic execution to explore function behavior
+# Create a blank state at the function address to start symbolic execution from there
+state = project.factory.blank_state(addr=function_address)
+
+# Define symbolic arguments if required
+arg1 = claripy.BVS("arg1", 32)  # Create symbolic 32-bit variable for argument
+arg2 = claripy.BVS("arg2", 32)
+
+# Set registers or stack variables if needed for symbolic execution
+state.regs.r0 = arg1
+state.regs.r1 = arg2
+
+# Use a simulation manager to explore paths
+simgr = project.factory.simgr(state)
+
+# Explore paths up to a specified depth or until hitting an address of interest
+simgr.explore(find=function_address + 0x10, avoid=function_address + 0x20)
+
+# Process and display path results
+if simgr.found:
+    found_state = simgr.found[0]
+    print("\\nFound a valid path:")
+    print(f"Registers: {found_state.regs}")
+    print(f"Memory snapshot at function exit: {found_state.memory}")
+    print("Function exit reached with symbolic execution.")
+else:
+    print("No paths found up to the target depth or conditions.");`;
+
+        function addCodeBox(defaultCode = '') {
+            const codeBoxHtml = `
+                <div class="form-group codeBox">
+                    <textarea class="form-control pythonCode" rows="10" placeholder="Enter your Python code here...">${defaultCode}</textarea>
+                    <button type="button" class="btn btn-danger mt-2 deleteCodeBox">Delete</button>
+                </div>`;
+            $('#codeBoxesContainer').append(codeBoxHtml); // Append new code box
+        }
+
+        function addNewCodeBox() {
+            addCodeBox(); // Add a new code box without default code
+        }
+
+        function showDefaultCode(option) {
+            let codeToShow = '';
+            if (option === 'CFGFast') {
+                codeToShow = defaultCodeCFGFast;
+                $('#functionInfoButton').show(); // Show Function Info button
+                $('#symbolicExecutionButton').show(); // Show Symbolic Execution button
+            } else if (option === 'CFGEmulated') {
+                codeToShow = defaultCodeCFGEmulated;
+                $('#functionInfoButton').show(); // Show Function Info button
+                $('#symbolicExecutionButton').show(); // Show Symbolic Execution button
+            }
+            addCodeBox(codeToShow); // Add the code box with the selected default code
+        }
+
+        // Event delegation to handle delete button clicks
+        $(document).on('click', '.deleteCodeBox', function() {
+            $(this).closest('.codeBox').remove(); // Remove the closest code box
+        });
+
+        // Function Info button click handler
+        function addFunctionInfoCode() {
+            addCodeBox(functionInfoCode); // Add the function info code block
+        }
+
+        // Symbolic Execution button click handler
+        function addSymbolicExecutionCode() {
+            addCodeBox(symbolicExecutionCode); // Add the symbolic execution code block
+        }
+
+        function openPopup(url, isImage, downloadUrl) {
+            if (isImage) {
+                $('#modal').find('.modal-dialog').addClass('modal-lg'); // Add large modal class
+                $('#modalContent').html('<img src="' + url + '" alt="CFG Image" style="width: 100%; height: auto;">');
+                $('#modalFooter').html('<a href="' + downloadUrl + '" class="btn btn-primary" download>Download CFG</a>'); // Add download button
+            } else {
+                $('#modal').find('.modal-dialog').removeClass('modal-lg'); // Remove large modal class
+                $.get(url, function(data) {
+                    $('#modalContent').html('<pre>' + data + '</pre>');
+                    $('#modalFooter').html('<a href="' + downloadUrl + '" class="btn btn-primary" download>Download Assembly Code</a>'); // Add download button
+                });
+            }
+            $('#modal').modal('show');
+        }
+
+        function runPythonCode() {
+            const codeBoxes = $('.pythonCode'); // Get all code boxes
+            let allCode = '';
+            codeBoxes.each(function() {
+                allCode += $(this).val() + '\n'; // Concatenate all code
+            });
+            $.post('/run_code', { code: allCode }, function(response) {
+                console.log("Response from server:", response); // Debugging output
+                $('#codeOutput').text(response.output); // Display the output in the designated area
+            }).fail(function(jqXHR, textStatus, errorThrown) {
+                $('#codeOutput').text('Error: ' + textStatus + ' - ' + errorThrown); // Handle errors
+            });
+        }
+    </script>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h1 class="mb-0">Results for {{ input_file_name }}</h1>
+            </div>
+            <div class="card-body">
+                <table id="resultsTable" class="table table-bordered table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Address</th>
+                            <th>Parser</th>
+                            <th>Probability not Parser</th>
+                            <th>Probability Parser</th>
+                            <th>Num Nodes</th>
+                            <th>Num Edges</th>
+                            <th>CFG</th>
+                            <th>Assembly Code</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for result in predictions %}
+                        <tr>
+                            <td>{{ result['Name'] }}</td>
+                            <td>{{ result['Address'] }}</td>
+                            <td>{{ result['Predicted'] }}</td>
+                            <td>{{ result['Probability_0'] }}</td>
+                            <td>{{ result['Probability_1'] }}</td>
+                            <td>{{ result['Num_Nodes'] }}</td>
+                            <td>{{ result['Num_Edges'] }}</td>
+                            <td>
+                                <a href="javascript:void(0);" onclick="openPopup('{{ result['CFG_image'] }}', true, '{{ result['CFG_image'] }}')">
+                                    <img src="{{ result['CFG_image'] }}" alt="CFG Image" style="width: 50px; height: auto;">
+                                </a>
+                            </td>
+                            <td>
+                                <a href="javascript:void(0);" onclick="openPopup('{{ result['Assembly_code'] }}', false, '{{ result['Assembly_code'] }}')">
+                                    View Assembly Code
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <a href="/" class="btn btn-primary">Upload Another File</a>
+            </div>
+        </div>
+
+        <!-- Python Code Execution Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Run Python Code</h5>
+            </div>
+            <div class="card-body">
+                <div id="codeBoxesContainer"></div> <!-- Container for code boxes -->
+                <button class="btn btn-primary mt-2" onclick="showDefaultCode('CFGFast')">CFGFast</button>
+                <button class="btn btn-primary mt-2" onclick="showDefaultCode('CFGEmulated')">CFGEmulated</button>
+                <button class="btn btn-primary mt-2" id="functionInfoButton" style="display:none;" onclick="addFunctionInfoCode()">Function Info</button>
+                <button class="btn btn-primary mt-2" id="symbolicExecutionButton" style="display:none;" onclick="addSymbolicExecutionCode()">Symbolic Execution</button>
+                <button class="btn btn-secondary mt-2" onclick="addNewCodeBox()">+</button> <!-- Button to add new code box -->
+                <button class="btn btn-success mt-2" onclick="runPythonCode()">Run Code</button>
+                <h6 class="mt-3">Output:</h6>
+                <pre id="codeOutput" class="border p-2"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for displaying content -->
+    <div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-labelledby="modalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalLabel">Content</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="modalContent">
+                    <!-- Content will be loaded here -->
+                </div>
+                <div class="modal-footer" id="modalFooter">
+                    <!-- Download button will be added here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading...</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f4;
+            font-family: Arial, sans-serif;
+        }
+        .loading-container {
+            text-align: center;
+        }
+        .loading-bar {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .loading-progress {
+            height: 20px;
+            width: 0;
+            background-color: #4caf50;
+            transition: width 0.5s;
+        }
+        .loading-message {
+            font-size: 1.2em;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-container">
+        <div class="loading-bar">
+            <div class="loading-progress" style="width: 0%;"></div>
+        </div>
+        <div class="loading-message">{{ message }}</div>
+    </div>
+
+    <script>
+        // Function to check the status of the processing
+        function checkStatus() {
+            fetch('/status')  // Create a new endpoint to check the status
+                .then(response => response.json())
+                .then(data => {
+                    // Update the loading message
+                    document.querySelector('.loading-message').innerText = data.message;
+
+                    // Simulate loading progress based on the current message
+                    const progressBar = document.querySelector('.loading-progress');
+                    if (data.message.includes("Identifying")) {
+                        progressBar.style.width = '33%'; // Update for step 1
+                    } else if (data.message.includes("Creating")) {
+                        progressBar.style.width = '66%'; // Update for step 2
+                    } else if (data.message.includes("Use the model")) {
+                        progressBar.style.width = '100%'; // Update for step 3
+                    }
+
+                    // If processing is complete, redirect to results page
+                    if (data.status === 'complete') {
+                        window.location.href = '/results';  // Adjust this to your results route
+                    } else {
+                        setTimeout(checkStatus, 2000);  // Check again after 2 seconds
+                    }
+                });
+        }
+
+        // Start checking the status
+        checkStatus();
+    </script>
+</body>
+</html>

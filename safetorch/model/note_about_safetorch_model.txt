@@ -1,0 +1,3 @@
+You need to follow the instructions on the Safetorch model's paper to download and put here:
+1) SAFEtoch.pt <- trained model
+2) word2id.json <- word2id dictionary json file (to map instructions)

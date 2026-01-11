@@ -1,0 +1,34 @@
+## Required Conda Environments
+
+To run this project, you need to set up three different conda environments. Below are the details for each environment:
+
+1. **Function Extraction Environment** (`test-3.9-env`):
+   - **Python Version**: `3.9.15`
+   - **Key Packages**: `angr`, `r2pipe`, `timeout-decorator`
+   - **Setup**:
+     ```bash
+     conda create -n test-3.9-env python=3.9.15
+     conda activate test-3.9-env
+     conda install angr r2pipe timeout-decorator
+     ```
+
+2. **Geometric Data Creation and GNN Model Inference Environment** (`test-3.10.0-env`):
+   - **Python Version**: `3.10.0`
+   - **Key Packages**: `torch`, `torch-geometric`, `pandas`, `matplotlib`, `flask`
+   - **Setup**:
+     ```bash
+     conda create -n test-3.10.0-env python=3.10.0
+     conda activate test-3.10.0-env
+     conda install pytorch -c pytorch
+     conda install torch-geometric pandas matplotlib flask
+     ```
+
+3. **Asm2Vec Model Inference Environment** (`asm2vec`):
+   - **Python Version**: `3.8.19`
+   - **Key Packages**: `gensim`, `asm2vec`, `numpy`, `scipy`
+   - **Setup**:
+     ```bash
+     conda create -n asm2vec python=3.8.19
+     conda activate asm2vec
+     conda install gensim numpy scipy
+     ```
