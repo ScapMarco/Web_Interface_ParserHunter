@@ -17,6 +17,8 @@ def load_and_convert_pkl(file_path):
     try:
         with open(file_path, 'rb') as file:
             data = pickle.load(file)
+            print(f"    Pickle file '{file_path}' loaded successfully.")
+            print(f"    Length of loaded data: {len(data)}")
 
             if not isinstance(data, dict):
                 raise ValueError("The loaded data is not a dictionary.")

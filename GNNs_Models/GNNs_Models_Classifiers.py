@@ -72,8 +72,14 @@ class MyGNNClassifier(BaseEstimator, ClassifierMixin, nn.Module):
         Store parameters on the estimator object. Do NOT create the model here.
         GridSearchCV will call set_params repeatedly; model creation should happen in fit().
         """
+        # List of parameters that MUST be integers
+        int_params = {'input_dim', 'hidden_dim', 'output_dim', 'batch_size', 'epochs', 'num_heads'}
+
         for key, value in params.items():
-            setattr(self, key, value)
+            if key in int_params and value is not None:
+                setattr(self, key, int(value)) # Force cast to int
+            else:
+                setattr(self, key, value)
         return self
 
     # -------------------------
@@ -390,6 +396,12 @@ class MyGNNClassifier(BaseEstimator, ClassifierMixin, nn.Module):
                 df["Probability_1"] = df["Probability_1"].round(3)
             # Save to CSV if requested
             if filename:
+                parent_dir = os.path.dirname(filename)
+                
+                # Create parent directory if it doesn't exist
+                if parent_dir:
+                    os.makedirs(parent_dir, exist_ok=True)
+
                 print(f"[Score] Saving case studies to CSV: {filename}")
                 df.to_csv(filename, index=False)
             return df

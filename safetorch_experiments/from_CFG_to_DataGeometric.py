@@ -313,8 +313,15 @@ def get_Geometric_Data_from_CFG(cfg, project, label=None, path_python_executable
     flat_node_features = [emb for sublist in node_features for emb in sublist]
     # Convert the list to a PyTorch tensor
     x = torch.tensor(flat_node_features, dtype=torch.float32)
+
+    if len(edge_indices) > 0:
+        edge_index = torch.tensor(edge_indices, dtype=torch.long).t().contiguous()
+    else:
+        # Case of small CFG with no edges
+        # Create an empty tensor with shape [2, 0]
+        edge_index = torch.empty((2, 0), dtype=torch.long)
+
     print(f"x.shape: {x.shape}")
-    edge_index = torch.tensor(edge_indices, dtype=torch.long).t().contiguous()
     print(f"edge_index.shape: {edge_index.shape}")
 
     if label is not None:
@@ -345,6 +352,8 @@ def get_Geometric_Datas(project, functions_addresses, path_python_executable=Non
     # list of ACFGs extracted from the binary
     geometric_datas_list = []
     i = 0
+
+
     # Loop through each function in the project 
     for name, value in functions_addresses.items(): # functions_addresses = {name:(address, label)}
         # Check for the label 

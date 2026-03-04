@@ -16,6 +16,8 @@ TIMEOUT_DURATION = 60          # Timeout duration in seconds
 def _cfg_worker(address, project_kwargs, out_q):
     try:
         proj = angr.Project(**project_kwargs)
+        #print(f"DEBUG: Analyzing {hex(address)} | Project Base: {hex(proj.loader.main_object.mapped_base)}")
+
         cfg = proj.analyses.CFGEmulated(
             starts=[address],
             initial_state=proj.factory.blank_state(addr=address),
@@ -56,7 +58,7 @@ def filter_graphs(address, project_path, load_options):
     if nodes <= MIN_NODES_EDGES or edges <= MIN_NODES_EDGES:
         return False
 
-    print(f"    CFG OK for {hex(address)} (nodes={nodes}, edges={edges})")
+    print(f"    Extracted CFG for {hex(address)} (nodes={nodes}, edges={edges})")
     return True
 
 def identify_functions_with_r2(project_path, load_options):
@@ -69,8 +71,13 @@ def identify_functions_with_r2(project_path, load_options):
     r2.cmd('s .text')
     functions = r2.cmdj('aflj')
 
+    print("Total functions found by R2: ", len(functions))
+
     results = {}
     for i, func in enumerate(functions):
+
+        #print(f"DEBUG: Processing function {i+1}/{len(functions)}: {func['name']} @ {hex(func['offset'])}")
+
         name = func['name']
         addr = func['offset']
         # skip libs/imports
@@ -91,12 +98,15 @@ def identify_functions_with_r2(project_path, load_options):
 def save_labeled_data(labeled_dict, filename):
     with open(filename, 'wb') as file:
         pickle.dump(labeled_dict, file)
-    print(f"    Labeled data saved to {filename}")
+    print(f"    List of functions to analyze saved to {filename} (with {len(labeled_dict)} entries)")
 
 def main(binary_path, file_path):
     """Main execution block."""
     # Get the list of functions
-    load_opts = {"auto_load_libs": False}
+    load_opts = {
+        "auto_load_libs": False,
+        "main_opts": {'base_addr': 0x0}
+    }
     functions_to_analyze = identify_functions_with_r2(
         project_path=binary_path,
         load_options=load_opts
