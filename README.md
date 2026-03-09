@@ -54,6 +54,7 @@ CONDA_ENV_ASM2VEC_INFERENCE = '/home/marcos/anaconda3/envs/asm2vec/bin/python'
 To enable the LLM Parser Identification feature, export your Groq API key:
 ```bash
 export GROQ_API_KEY='your_groq_key_here'
+```
 
 ### 4. Run the Flask Application
 Run the app.py file to start the Flask web server:
