@@ -3,78 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Loading...</title>
+    <title>ParserHunter - Analyzing Binary</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
         body {
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #f4f4f4;
-            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        .loading-container {
+        .loading-card {
+            width: 100%;
+            max-width: 500px;
+            padding: 40px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             text-align: center;
         }
-        .loading-bar {
-            width: 100%;
-            background-color: #e0e0e0;
-            border-radius: 5px;
-            overflow: hidden;
-            margin: 20px 0;
+        .progress {
+            height: 25px;
+            border-radius: 15px;
+            margin: 25px 0;
+            background-color: #e9ecef;
         }
-        .loading-progress {
-            height: 20px;
-            width: 0;
-            background-color: #4caf50;
-            transition: width 0.5s;
+        .progress-bar {
+            background-color: #28a745;
+            transition: width 0.8s ease-in-out;
         }
-        .loading-message {
-            font-size: 1.2em;
+        .status-header {
+            font-weight: 600;
             color: #333;
+            margin-bottom: 5px;
+        }
+        .status-subtext {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+            margin-bottom: 20px;
+            color: #28a745;
         }
     </style>
 </head>
 <body>
-    <div class="loading-container">
-        <div class="loading-bar">
-            <div class="loading-progress" style="width: 0%;"></div>
+    <div class="loading-card">
+        <div class="spinner-border" role="status">
+            <span class="sr-only">Loading...</span>
         </div>
-        <div class="loading-message">{{ message }}</div>
+        <h4 class="status-header">Analyzing Binary</h4>
+        <div class="progress">
+            <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 5%;"></div>
+        </div>
+        <div id="status-message" class="status-subtext">Initializing pipeline...</div>
     </div>
 
     <script>
-        // Function to check the status of the processing
+        /**
+         * Function to poll the /status endpoint.
+         * Matches strings from app.py:
+         * "Phase 1: Binary Deconstruction..."
+         * "Phase 2: Semantic Graph Building..."
+         * "Phase 3: Neural Network Classification..."
+         */
         function checkStatus() {
-            fetch('/status')  // Create a new endpoint to check the status
+            fetch('/status')
                 .then(response => response.json())
                 .then(data => {
-                    // Update the loading message
-                    document.querySelector('.loading-message').innerText = data.message;
+                    const message = data.message;
+                    const progressBar = document.getElementById('progress-bar');
+                    const statusText = document.getElementById('status-message');
 
-                    // Simulate loading progress based on the current message
-                    const progressBar = document.querySelector('.loading-progress');
-                    if (data.message.includes("Identifying")) {
-                        progressBar.style.width = '33%'; // Update for step 1
-                    } else if (data.message.includes("Creating")) {
-                        progressBar.style.width = '66%'; // Update for step 2
-                    } else if (data.message.includes("Use the model")) {
-                        progressBar.style.width = '100%'; // Update for step 3
+                    // Update the visible text message
+                    statusText.innerText = message;
+
+                    // Update progress bar based on keywords in the message
+                    if (message.includes("Phase 1")) {
+                        progressBar.style.width = '33%';
+                    } else if (message.includes("Phase 2")) {
+                        progressBar.style.width = '66%';
+                    } else if (message.includes("Phase 3")) {
+                        progressBar.style.width = '95%';
                     }
 
-                    // If processing is complete, redirect to results page
+                    // Handle completion or continue polling
                     if (data.status === 'complete') {
-                        window.location.href = '/results';  // Adjust this to your results route
+                        progressBar.style.width = '100%';
+                        statusText.innerText = "Finalizing results...";
+                        // Small delay before redirect so the user sees 100%
+                        setTimeout(() => {
+                            window.location.href = '/results';
+                        }, 800);
                     } else {
-                        setTimeout(checkStatus, 2000);  // Check again after 2 seconds
+                        // Poll every 1 second for higher responsiveness
+                        setTimeout(checkStatus, 1000);
                     }
+                })
+                .catch(error => {
+                    console.error('Error polling status:', error);
+                    setTimeout(checkStatus, 2000);
                 });
         }
 
-        // Start checking the status
-        checkStatus();
+        // Initialize polling on page load
+        document.addEventListener('DOMContentLoaded', checkStatus);
     </script>
 </body>
 </html>

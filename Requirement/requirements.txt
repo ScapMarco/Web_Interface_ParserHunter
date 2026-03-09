@@ -1,0 +1,8 @@
+A function belongs to the PARSER class if it satisfies ALL of the following 
+characteristics, OR at minimum the FINAL requirement (Composition):
+1. Input Handling: The function operates on a pointer/buffer/file descriptor containing unstructured input.
+2. Internal State: It maintains internal parsing-related state across calls or during processing.
+3. Decision-Making: It performs conditional branching based on input and internal state.
+4. Data Structure Creation: It constructs or updates a data structure representing recognized input.
+5. Outcome: It produces a boolean or a built data structure as the recognition output.
+6. Composition: The function's behavior is defined as a composition of other parsers or sub-parsers.

@@ -40,7 +40,13 @@ def create_and_save_geometric_datas_list(path_binary, path_dictionary, path_outp
     np.random.seed(42)
 
     # Create an Angr project for the binary executable
-    project = angr.Project(thing=path_binary, load_options={"auto_load_libs": False})
+    project = angr.Project(
+        thing=path_binary, 
+        load_options={
+            "auto_load_libs": False,
+            "main_opts": {'base_addr': 0x0}
+            }
+        )
 
     # Get the dictionary of functions to analyze {'name': address}
     functions_to_analyze = load_and_convert_pkl(path_dictionary)

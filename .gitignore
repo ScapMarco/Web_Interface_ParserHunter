@@ -1,2 +1,5 @@
 safetorch/model/SAFEtorch.pt
-safetorch/model/SAFEtorch.pt
+.env
+__pycache__/
+*.pt
+*.pkl

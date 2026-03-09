@@ -5,7 +5,9 @@ import matplotlib.pyplot as plt
 import angr
 import os
 
-
+# For LLM analysis
+from dotenv import load_dotenv
+from .groq_analyzer import GroqAnalyzer
 
 # Constants
 CALLDEPTH = 2                  # Analyzes the current function and its direct calls up to two levels deep.
@@ -13,34 +15,60 @@ CONTEXT_SENSITIVITY_LEVEL = 2  # Considers different calling contexts for functi
 NORMALIZE = True               # Simplifies the CFG structure by removing unnecessary nodes and edges.
 KEEP_STATE = True              # Preserves all input states during analysis for debugging and exploration.
 
+# API Key for the LLM analyzer (Groq)
+load_dotenv()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
 
 def save_CFG(cfg, title, name, hex_address, save_path=None):    
     # Create a NetworkX graph to represent the CFG
     cfg_graph = nx.DiGraph()
-    visited_addresses = set()
+    
+    # Use the actual node objects as keys to preserve all edges correctly
+    # Mapping addresses for labels later
+    node_labels = {}
+
     for node in cfg.graph.nodes():
         addr = hex(node.addr)
-        if addr not in visited_addresses:
-            cfg_graph.add_node(addr)
-            visited_addresses.add(addr)
+        cfg_graph.add_node(node)
+        node_labels[node] = addr
 
     for src, dst, data in cfg.graph.edges(data=True):
-        src_addr = hex(src.addr)
-        dst_addr = hex(dst.addr)
-        if src_addr in visited_addresses and dst_addr in visited_addresses:
-            cfg_graph.add_edge(src_addr, dst_addr, **data)
+        cfg_graph.add_edge(src, dst)
 
-    # Plot CFG
-    layout = nx.spring_layout(cfg_graph)
+    # Use a layout that handles directed graphs well
+    # 'shell_layout' or 'spring_layout' are usually best for small CFGs
+    layout = nx.spring_layout(cfg_graph, k=0.5, iterations=50)
+    
     fig, ax = plt.subplots(figsize=(12, 8))
-    nx.draw(cfg_graph, pos=layout, with_labels=True, node_size=2000, node_color='lightblue', font_size=10, ax=ax)
-    ax.set_title("Control Flow Graph " + title + ": " + name + "_" + hex_address)
+    
+    # Draw nodes
+    nx.draw_networkx_nodes(cfg_graph, pos=layout, node_size=1500, node_color='lightblue', ax=ax)
+    
+    # Draw labels (the hex addresses)
+    nx.draw_networkx_labels(cfg_graph, pos=layout, labels=node_labels, font_size=8, ax=ax)
+    
+    # Draw edges with curvature to reveal overlapping connections
+    # 'rad=0.1' creates a slight curve so parallel edges don't hide each other
+    nx.draw_networkx_edges(
+        cfg_graph, 
+        pos=layout, 
+        edgelist=list(cfg_graph.edges()),
+        arrows=True, 
+        arrowsize=20, 
+        connectionstyle='arc3, rad=0.1', 
+        edge_color='gray',
+        ax=ax
+    )
+
+    ax.set_title(f"Control Flow Graph {title}: {name} @ {hex_address} (Nodes: {len(cfg_graph.nodes)}, Edges: {len(cfg_graph.edges)})")
 
     if save_path:
         os.makedirs(save_path, exist_ok=True)
         file_name = f"CFG_{name}_{hex_address}.png"
-        plt.savefig(os.path.join(save_path, file_name))
-        print(f"CFG saved as {os.path.join(save_path, file_name)}")
+        full_path = os.path.join(save_path, file_name)
+        plt.savefig(full_path)
+        print(f"CFG saved as {full_path}")
     else:
         plt.show()
     plt.close(fig)
@@ -257,17 +285,14 @@ def get_ACFG(cfg, project, path_python_executable, path_script_embedding_model, 
 
     return acfg
 
-def get_Geometric_Data_from_CFG(cfg, project, label=None, path_python_executable=None, path_script_embedding_model=None, ref=None, path_save_cfg_info=None):
-    """Function to extract a PyTorch Geometric Data object from a CFG of a function
+
+
+def get_Geometric_Data_from_CFG(cfg, project, label=None, path_python_executable=None, path_script_embedding_model=None, ref=None, path_save_cfg_info=None, llm_data=None):
+    """
+    Function to extract a PyTorch Geometric Data object from a CFG of a function.
+    
     Args:
-        :param cfg:                                        CFG of a function
-        :param project:                                    Angr project
-        :param label (optional):                           Label for the function
-        :param path_python_executable (optional):          Path to the Python executable
-        :param path_script_embedding_model (optional):     Path to the embedding model script
-        :param ref (optional):                             Reference information for the function
-    Output:
-        :return:                                           PyTorch Geometric Data object
+        :param llm_data: A dictionary containing {'llm_prediction': int, 'llm_reasoning': str}
     """
 
     # Get the ACFG from the CFG
@@ -280,64 +305,53 @@ def get_Geometric_Data_from_CFG(cfg, project, label=None, path_python_executable
         ref=ref
     )
     
+    # Save the PNG visualization
     save_CFG(cfg, "(CFG)", ref['name'], ref['address'], save_path=path_save_cfg_info)
     
-    
-    # Extract node features
+    # Extract node features (SAFEtorch embeddings)
     node_features = []  
-    # Iterate through nodes to get features
     for node_id, attributes in acfg.nodes(data=True):
-        # iterate through the attributes and add each key and value to the list
-        values = []
-        for key, value in attributes.items():
-            # acfg node features
-            values.append(value)
-
+        values = [value for key, value in attributes.items()]
         node_features.append(values) 
 
-    # Create a mapping from addresses to integers
+    # Edge indices mapping
     address_to_index = {address: idx for idx, address in enumerate(acfg.nodes)}
-    # Edge indices
     edge_indices = [] 
-    # Iterate through edges to get index and features
     for src, dst, edge in acfg.edges(data=True):
-        # Extract edge feature 
-        source_index = address_to_index[src]
-        destination_index = address_to_index[dst]
-        # Append the source and target node indices to the edge indices
-        edge_indices.append([source_index, destination_index])
+        edge_indices.append([address_to_index[src], address_to_index[dst]])
 
     # Convert to PyTorch tensors
     print(f"\nConvert to PyTorch tensors:")
-    # Flatten the nested list structure and filter out any None values
     flat_node_features = [emb for sublist in node_features for emb in sublist]
-    # Convert the list to a PyTorch tensor
     x = torch.tensor(flat_node_features, dtype=torch.float32)
 
     if len(edge_indices) > 0:
         edge_index = torch.tensor(edge_indices, dtype=torch.long).t().contiguous()
     else:
-        # Case of small CFG with no edges
-        # Create an empty tensor with shape [2, 0]
         edge_index = torch.empty((2, 0), dtype=torch.long)
 
-    print(f"x.shape: {x.shape}")
-    print(f"edge_index.shape: {edge_index.shape}")
+    print(f"x.shape: {x.shape} | edge_index.shape: {edge_index.shape}")
 
+    # --- UPDATED: LLM Data Integration ---
+    # We no longer have 6 scores. We have a binary verdict and a reasoning string.
+    if llm_data is not None:
+        # This will add 'llm_prediction' and 'llm_reasoning' to the ref dictionary
+        ref.update(llm_data)
+    else:
+        # Default values if LLM analysis was skipped
+        ref['llm_prediction'] = 0
+        ref['llm_reasoning'] = "LLM analysis was not performed."
+
+    # Create the PyTorch Geometric Data object
     if label is not None:
-        labels = [label] 
-        y = torch.tensor(labels, dtype=torch.long)
-        # Create a PyTorch Geometric Data object
+        y = torch.tensor([label], dtype=torch.long)
         data = Data(x=x, edge_index=edge_index, y=y, ref=ref)
     else:
-        # Create a PyTorch Geometric Data object
         data = Data(x=x, edge_index=edge_index, ref=ref)
 
-    # Check if the data object is valid
     data.validate(raise_on_error=True)
     print(f"Data object: {data}")
     return data
-
 
 def get_Geometric_Datas(project, functions_addresses, path_python_executable=None, path_script_embedding_model=None, dictionary_labeled=True, path_save_cfg_info=None):
     """Function to extract a list of PyTorch Geometric Data objects from a list of functions
@@ -347,11 +361,21 @@ def get_Geometric_Datas(project, functions_addresses, path_python_executable=Non
     Output:
         :return:                        List of PyTorch Geometric Data objects with the CFG information and extracted features
     """    
+
+    # Initialize the LLM analyzer 
+    analyzer = GroqAnalyzer(api_key=GROQ_API_KEY)
+    requirements_path = os.path.join(os.path.dirname(__file__), "..", "Requirement", "requirements.txt")
+    analyzer.load_requirements(requirements_path) # read requirements file
+
+
     tot_count0 = 0
     tot_count1 = 0
     # list of ACFGs extracted from the binary
     geometric_datas_list = []
     i = 0
+
+
+    names = ["sym.jsmn_parse", "sym.test_count", "sym.jsmn_parse_string", "sym.jsmn_parse_primitive", "sym.vtokeq"]
 
 
     # Loop through each function in the project 
@@ -377,6 +401,33 @@ def get_Geometric_Datas(project, functions_addresses, path_python_executable=Non
             state_add_options=angr.options.refs, 
             keep_state=KEEP_STATE
         )  
+
+        ########## LLM Inference 
+        # Extract FULL assembly for the function
+        full_assembly = ""
+        print(f"    DEBUG: CFG for {name} has {len(cfg.graph.nodes())} nodes.")
+        for node in cfg.graph.nodes():
+            full_assembly += extract_assembly_code_from_node(node)
+
+        # Limit to roughly 5000 characters to stay safe with API limits
+        if len(full_assembly) > 5000:
+            full_assembly = full_assembly[:5000] + "\n... [TRUNCATED]"
+
+        # Get LLM Scores
+        print(f"Calling Groq for {name}...")
+        if not full_assembly.strip():
+            print(f"    [WARNING] Assembly is EMPTY! Skipping Groq.")
+            # Use the new keys: llm_prediction and llm_reasoning
+            llm_result = {"llm_prediction": 0, "llm_reasoning": "Empty assembly."}
+        else:
+            print(f"    [INFO] Sending {len(full_assembly)} chars to Groq.")
+
+            llm_result = {"llm_prediction": 0, "llm_reasoning": "Limited API calls for testing."}
+            if name in names:  # Limit the number of API calls for testing
+
+                # Use the new analyzer which returns a dictionary with 'llm_prediction'
+                llm_result = analyzer.analyze_assembly(full_assembly)
+
                 
         # Check for the label
         if dictionary_labeled:
@@ -384,7 +435,10 @@ def get_Geometric_Datas(project, functions_addresses, path_python_executable=Non
                                                     path_python_executable=path_python_executable, 
                                                     path_script_embedding_model=path_script_embedding_model,
                                                     path_save_cfg_info=path_save_cfg_info,
-                                                    ref={'name': name, 'address': hex(address)})
+                                                    ref={'name': name, 'address': hex(address)},
+                                                    # LLM inference
+                                                    llm_data=llm_result
+                                                    )
             
             # Count the number of geometric datas with label 0 and 1
             if label == 0:
@@ -397,13 +451,19 @@ def get_Geometric_Datas(project, functions_addresses, path_python_executable=Non
                                                     path_python_executable=path_python_executable, 
                                                     path_script_embedding_model=path_script_embedding_model,
                                                     path_save_cfg_info=path_save_cfg_info,
-                                                    ref={'name': name, 'address': hex(address)})
+                                                    ref={'name': name, 'address': hex(address)},
+                                                    # LLM inference
+                                                    llm_data=llm_result
+                                                    )
     
         # Append the Geometric Data to the list
         geometric_datas_list.append(data_geom)
+
+
+
         
     print(f"\n\n--------------------------------------------------------------------------------------------------")
-    print(f"Total number of geometric datas (cfg with more than 0 nodes / edges): {len(geometric_datas_list)}")
+    print(f"Total number of geometric datas (ACFG): {len(geometric_datas_list)}")
     print(f"with label 0: {tot_count0}")
     print(f"with label 1: {tot_count1}")
     return geometric_datas_list

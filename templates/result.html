@@ -3,43 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Results</title>
+    <title>ParserHunter - Advanced Results</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
+    
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    
     <style>
-        body {
-            background-color: #f8f9fa; /* Light background for better contrast */
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .table th, .table td { text-align: center; vertical-align: middle !important; }
+        .table th { background-color: #343a40; color: white; font-size: 0.9rem; }
+        
+        /* LLM Verdict Button Styling */
+        .verdict-btn { 
+            cursor: pointer; border: 1px solid #007bff; padding: 2px 10px; 
+            border-radius: 4px; color: #007bff; background: transparent; 
+            font-weight: bold; transition: 0.3s;
         }
-        .table th, .table td {
-            text-align: center; /* Center align table content */
+        .verdict-btn:hover { background: #007bff; color: white; }
+        
+        /* Fuzzer Console Styling */
+        #fuzzConsole {
+            background: #1e1e1e; color: #00ff00; padding: 20px; border-radius: 8px;
+            font-family: 'Courier New', Courier, monospace; min-height: 250px;
+            max-height: 450px; overflow-y: auto; white-space: pre-wrap;
+            border: 2px solid #444; box-shadow: inset 0 0 10px #000;
         }
-        .footer {
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            text-align: center;
-            padding: 10px;
-            background-color: #343a40;
-            color: white;
+        
+        /* Reasoning Text Styling */
+        .reasoning-text { 
+            font-style: italic; color: #333; line-height: 1.6; 
+            border-left: 5px solid #007bff; padding-left: 15px; background: #f0f7ff; padding: 10px;
+        }
+        
+        .codeBox textarea { font-family: 'Consolas', 'Monaco', monospace; background-color: #fdfdfd; font-size: 0.9rem; }
+        
+        /* Register Mapper Styling */
+        .reg-card { background: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+        .reg-name { font-weight: bold; color: #d9534f; font-size: 1.1rem; }
+        .help-tip { font-size: 0.8rem; color: #666; display: block; margin-top: 5px; }
+
+        /* Assembly View in Modal */
+        .asm-view { 
+            background: #1e1e1e; color: #dcdcdc; padding: 15px; height: 500px; 
+            overflow-y: auto; font-family: 'Consolas', monospace; font-size: 0.85rem; border-radius: 5px; 
         }
     </style>
+
     <script>
         $(document).ready(function() {
-            $('#resultsTable').DataTable({
-                "order": [] // You can specify default ordering here if needed
-            });
+            $('#resultsTable').DataTable({ "order": [[ 4, "desc" ]] });
         });
 
-        // Default code snippets
+        // --- FULL ORIGINAL ANGR CODE SNIPPETS ---
         const defaultCodeCFGFast = 
 `import angr
 import claripy
 
 # Load the binary executable
 binary_path = "./Binaries/temp_uploaded_file" 
-project = angr.Project(binary_path, auto_load_libs=False)
+project = angr.Project(binary_path, auto_load_libs=False, main_opts={'base_addr': 0x0})
 
 # Specify the address of the function you want to analyze
 function_address = 0x12345678  # Replace with your function's hex address
@@ -59,7 +83,7 @@ import claripy
 
 # Load the binary executable
 binary_path = "./Binaries/temp_uploaded_file" 
-project = angr.Project(binary_path, auto_load_libs=False)
+project = angr.Project(binary_path, auto_load_libs=False, main_opts={'base_addr': 0x0})
 
 # Specify the address of the function you want to analyze
 function_address = 0x12345678  # Replace with your function's hex address
@@ -80,197 +104,316 @@ for block in function.blocks:
     print(f"Block at address {hex(block.addr)}:")
     print(block.disassembly)
 
-# Generate a control-flow graph (CFG) and print basic information
-print("\\nControl Flow Graph (CFG) for the function:")
+# Generate basic information
+print("\\nControl Flow Graph (CFG) Info:")
 for node in cfg.graph.nodes():
     if node.function_address == function_address:
         print(f"Node at address {hex(node.addr)}")`;
 
         const symbolicExecutionCode = 
-`# Symbolic execution to explore function behavior
-# Create a blank state at the function address to start symbolic execution from there
+`# Symbolic execution exploration
 state = project.factory.blank_state(addr=function_address)
-
-# Define symbolic arguments if required
-arg1 = claripy.BVS("arg1", 32)  # Create symbolic 32-bit variable for argument
-arg2 = claripy.BVS("arg2", 32)
-
-# Set registers or stack variables if needed for symbolic execution
-state.regs.r0 = arg1
-state.regs.r1 = arg2
-
-# Use a simulation manager to explore paths
+# We create a symbolic buffer for the argument
+arg1 = claripy.BVS("arg1", 32)
+state.regs.rdi = arg1
 simgr = project.factory.simgr(state)
+simgr.explore(find=function_address + 0x20)
 
-# Explore paths up to a specified depth or until hitting an address of interest
-simgr.explore(find=function_address + 0x10, avoid=function_address + 0x20)
-
-# Process and display path results
 if simgr.found:
-    found_state = simgr.found[0]
-    print("\\nFound a valid path:")
-    print(f"Registers: {found_state.regs}")
-    print(f"Memory snapshot at function exit: {found_state.memory}")
-    print("Function exit reached with symbolic execution.")
+    print(f"Found path reaching target: {simgr.found[0]}")
 else:
-    print("No paths found up to the target depth or conditions.");`;
+    print("No paths found up to the target depth.")`;
 
+        // --- UI HELPERS ---
         function addCodeBox(defaultCode = '') {
             const codeBoxHtml = `
                 <div class="form-group codeBox">
-                    <textarea class="form-control pythonCode" rows="10" placeholder="Enter your Python code here...">${defaultCode}</textarea>
-                    <button type="button" class="btn btn-danger mt-2 deleteCodeBox">Delete</button>
+                    <textarea class="form-control pythonCode" rows="10">${defaultCode}</textarea>
+                    <button type="button" class="btn btn-danger btn-sm mt-2 deleteCodeBox">Delete Box</button>
                 </div>`;
-            $('#codeBoxesContainer').append(codeBoxHtml); // Append new code box
-        }
-
-        function addNewCodeBox() {
-            addCodeBox(); // Add a new code box without default code
+            $('#codeBoxesContainer').append(codeBoxHtml);
         }
 
         function showDefaultCode(option) {
-            let codeToShow = '';
-            if (option === 'CFGFast') {
-                codeToShow = defaultCodeCFGFast;
-                $('#functionInfoButton').show(); // Show Function Info button
-                $('#symbolicExecutionButton').show(); // Show Symbolic Execution button
-            } else if (option === 'CFGEmulated') {
-                codeToShow = defaultCodeCFGEmulated;
-                $('#functionInfoButton').show(); // Show Function Info button
-                $('#symbolicExecutionButton').show(); // Show Symbolic Execution button
-            }
-            addCodeBox(codeToShow); // Add the code box with the selected default code
+            let codeToShow = (option === 'CFGFast') ? defaultCodeCFGFast : defaultCodeCFGEmulated;
+            addCodeBox(codeToShow);
+            $('#extraButtons').show();
         }
 
-        // Event delegation to handle delete button clicks
-        $(document).on('click', '.deleteCodeBox', function() {
-            $(this).closest('.codeBox').remove(); // Remove the closest code box
-        });
+        $(document).on('click', '.deleteCodeBox', function() { $(this).closest('.codeBox').remove(); });
 
-        // Function Info button click handler
-        function addFunctionInfoCode() {
-            addCodeBox(functionInfoCode); // Add the function info code block
-        }
-
-        // Symbolic Execution button click handler
-        function addSymbolicExecutionCode() {
-            addCodeBox(symbolicExecutionCode); // Add the symbolic execution code block
-        }
-
-        function openPopup(url, isImage, downloadUrl) {
+        function openPopup(url, isImage) {
+            $('#modalContent').html('Loading content...');
             if (isImage) {
-                $('#modal').find('.modal-dialog').addClass('modal-lg'); // Add large modal class
-                $('#modalContent').html('<img src="' + url + '" alt="CFG Image" style="width: 100%; height: auto;">');
-                $('#modalFooter').html('<a href="' + downloadUrl + '" class="btn btn-primary" download>Download CFG</a>'); // Add download button
+                $('#modal').find('.modal-dialog').addClass('modal-lg');
+                $('#modalContent').html(`<img src="${url}" style="width: 100%; height: auto; border: 1px solid #ddd;">`);
             } else {
-                $('#modal').find('.modal-dialog').removeClass('modal-lg'); // Remove large modal class
+                $('#modal').find('.modal-dialog').removeClass('modal-lg');
                 $.get(url, function(data) {
-                    $('#modalContent').html('<pre>' + data + '</pre>');
-                    $('#modalFooter').html('<a href="' + downloadUrl + '" class="btn btn-primary" download>Download Assembly Code</a>'); // Add download button
+                    $('#modalContent').html(`<pre style="text-align: left; background: #f4f4f4; padding: 15px; border-radius: 5px; max-height: 500px; overflow-y: auto;">${data}</pre>`);
                 });
             }
+            $('#modalFooter').html(`<a href="${url}" class="btn btn-primary" download>Download File</a>`);
             $('#modal').modal('show');
         }
 
+        function showReasoning(name, reasoning) {
+            $('#reasoningModalLabel').text("LLM Reasoning: " + name);
+            $('#reasoningContent').text(reasoning);
+            $('#reasoningModal').modal('show');
+        }
+
         function runPythonCode() {
-            const codeBoxes = $('.pythonCode'); // Get all code boxes
             let allCode = '';
-            codeBoxes.each(function() {
-                allCode += $(this).val() + '\n'; // Concatenate all code
-            });
+            $('.pythonCode').each(function() { allCode += $(this).val() + '\n'; });
+            $('#codeOutput').text(">> Executing Python script via Angr engine...");
             $.post('/run_code', { code: allCode }, function(response) {
-                console.log("Response from server:", response); // Debugging output
-                $('#codeOutput').text(response.output); // Display the output in the designated area
-            }).fail(function(jqXHR, textStatus, errorThrown) {
-                $('#codeOutput').text('Error: ' + textStatus + ' - ' + errorThrown); // Handle errors
+                $('#codeOutput').text(response.output);
+            });
+        }
+
+        // --- ADVANCED FUZZING LOGIC ---
+        let currentFuzzAddr = '';
+        let currentFuzzName = '';
+        let statsInterval = null;
+
+        function setupFuzz(name, addr, assemblyUrl) {
+            currentFuzzName = name;
+            currentFuzzAddr = addr;
+            $('#modal-func-name').text(name);
+            
+            // LOAD ASSEMBLY INTO MODAL FOR REFERENCE
+            $('#modal-asm-view').text("Fetching assembly data...");
+            $.get(assemblyUrl, function(data) {
+                $('#modal-asm-view').text(data);
+            });
+
+            $('#fuzzModal').modal('show');
+        }
+
+        function executeFuzz() {
+            let mapping = [];
+            for (let i = 1; i <= 6; i++) {
+                mapping.push($(`#reg${i}`).val());
+            }
+            const argMap = mapping.join(',');
+
+            $('#fuzzModal').modal('hide');
+            $('#fuzzConsole').html(">> [SYSTEM] Starting AFL++ Fuzzer...\n>> [SYSTEM] Function: " + currentFuzzName + "\n>> [SYSTEM] Map: " + argMap + "\n>> [SYSTEM] Initializing QEMU/Unicorn emulation...");
+
+            $.post('/start_fuzz', { 
+                func_name: currentFuzzName, 
+                func_addr: currentFuzzAddr, 
+                arg_map: argMap 
+            }, function() {
+                if(statsInterval) clearInterval(statsInterval);
+                statsInterval = setInterval(refreshFuzzStats, 2000);
+            });
+        }
+
+        function refreshFuzzStats() {
+            $.get('/fuzz_results', function(data) {
+                if (data.includes("no stats available")) {
+                    $('#fuzzConsole').html(">> [AFL++] Waiting for first execution cycle...\n>> [AFL++] Current Status: Calibrating instrumentation");
+                } else {
+                    let html = "<strong>--- AFL++ LIVE DASHBOARD ---</strong><br>";
+                    data.split('\n').forEach(line => {
+                        if(line.includes(':')) {
+                            let parts = line.split(':');
+                            html += `<span style="color:#aaa">${parts[0]}:</span><strong>${parts[1]}</strong><br>`;
+                        }
+                    });
+                    $('#fuzzConsole').html(html);
+                }
+            });
+        }
+
+        function stopFuzzing() {
+            $.post('/stop_fuzz', function(data) { 
+                alert(data.status); 
+                clearInterval(statsInterval); 
+                $('#fuzzConsole').append("\n>> [SYSTEM] Session Forcefully Stopped."); 
             });
         }
     </script>
 </head>
 <body>
-    <div class="container mt-5">
-        <div class="card mb-4">
-            <div class="card-header">
-                <h1 class="mb-0">Results for {{ input_file_name }}</h1>
+    <div class="container-fluid mt-5 px-5">
+        
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">ParserHunter Analysis: <strong>{{ input_file_name }}</strong></h2>
+                <a href="/" class="btn btn-outline-secondary">Upload New Binary</a>
             </div>
             <div class="card-body">
-                <table id="resultsTable" class="table table-bordered table-striped">
+                <table id="resultsTable" class="table table-hover table-bordered">
                     <thead>
                         <tr>
                             <th>Name</th>
                             <th>Address</th>
-                            <th>Parser</th>
-                            <th>Probability not Parser</th>
-                            <th>Probability Parser</th>
-                            <th>Num Nodes</th>
-                            <th>Num Edges</th>
+                            <th>Nodes/Edges</th>
+                            <th>GNN Predict</th>
+                            <th>GNN Prob</th>
+                            <th>LLM Verdict</th>
                             <th>CFG</th>
-                            <th>Assembly Code</th>
+                            <th>Asm</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for result in predictions %}
                         <tr>
-                            <td>{{ result['Name'] }}</td>
-                            <td>{{ result['Address'] }}</td>
-                            <td>{{ result['Predicted'] }}</td>
-                            <td>{{ result['Probability_0'] }}</td>
-                            <td>{{ result['Probability_1'] }}</td>
-                            <td>{{ result['Num_Nodes'] }}</td>
-                            <td>{{ result['Num_Edges'] }}</td>
+                            <td><strong>{{ result['Name'] }}</strong></td>
+                            <td><code>{{ result['Address'] }}</code></td>
+                            <td><small>{{ result['Num_Nodes'] }}/{{ result['Num_Edges'] }}</small></td>
                             <td>
-                                <a href="javascript:void(0);" onclick="openPopup('{{ result['CFG_image'] }}', true, '{{ result['CFG_image'] }}')">
-                                    <img src="{{ result['CFG_image'] }}" alt="CFG Image" style="width: 50px; height: auto;">
-                                </a>
+                                <span class="badge {{ 'badge-danger' if result['Predicted'] == 1 else 'badge-success' }}">
+                                    {{ "PARSER" if result['Predicted'] == 1 else "OTHER" }}
+                                </span>
+                            </td>
+                            <td>{{ "%.3f"|format(result['Probability_1']|float) }}</td>
+                            <td>
+                                <button class="verdict-btn" onclick="showReasoning('{{ result['Name'] }}', '{{ result['llm_reasoning'] }}')">
+                                    {{ result['llm_prediction'] }}
+                                </button>
                             </td>
                             <td>
-                                <a href="javascript:void(0);" onclick="openPopup('{{ result['Assembly_code'] }}', false, '{{ result['Assembly_code'] }}')">
-                                    View Assembly Code
+                                <a href="javascript:void(0);" onclick="openPopup('{{ result['CFG_image'] }}', true)">
+                                    <img src="{{ result['CFG_image'] }}" style="width: 30px; border: 1px solid #ccc; border-radius: 3px;">
                                 </a>
                             </td>
+                            <td><button class="btn btn-xs btn-outline-info" onclick="openPopup('{{ result['Assembly_code'] }}', false)">View</button></td>
+                            <td><button class="btn btn-sm btn-danger" onclick="setupFuzz('{{ result['Name'] }}', '{{ result['Address'] }}', '{{ result['Assembly_code'] }}')">Fuzz</button></td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
-                <a href="/" class="btn btn-primary">Upload Another File</a>
             </div>
         </div>
 
-        <!-- Python Code Execution Section -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5>Run Python Code</h5>
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">AFL++ Fuzzer Monitor</h5>
+                <button class="btn btn-sm btn-outline-danger" onclick="stopFuzzing()">Terminate Session</button>
             </div>
             <div class="card-body">
-                <div id="codeBoxesContainer"></div> <!-- Container for code boxes -->
-                <button class="btn btn-primary mt-2" onclick="showDefaultCode('CFGFast')">CFGFast</button>
-                <button class="btn btn-primary mt-2" onclick="showDefaultCode('CFGEmulated')">CFGEmulated</button>
-                <button class="btn btn-primary mt-2" id="functionInfoButton" style="display:none;" onclick="addFunctionInfoCode()">Function Info</button>
-                <button class="btn btn-primary mt-2" id="symbolicExecutionButton" style="display:none;" onclick="addSymbolicExecutionCode()">Symbolic Execution</button>
-                <button class="btn btn-secondary mt-2" onclick="addNewCodeBox()">+</button> <!-- Button to add new code box -->
-                <button class="btn btn-success mt-2" onclick="runPythonCode()">Run Code</button>
-                <h6 class="mt-3">Output:</h6>
-                <pre id="codeOutput" class="border p-2"></pre>
+                <div id="fuzzConsole">Fuzzer Idle. No active session detected.</div>
+            </div>
+        </div>
+
+        <div class="card mb-5 shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Symbolic Execution Playground (Angr)</h5>
+            </div>
+            <div class="card-body">
+                <div id="codeBoxesContainer"></div>
+                <div class="mt-3">
+                    <button class="btn btn-primary btn-sm" onclick="showDefaultCode('CFGFast')">New CFGFast Template</button>
+                    <button class="btn btn-primary btn-sm" onclick="showDefaultCode('CFGEmulated')">New CFGEmulated Template</button>
+                    
+                    <span id="extraButtons" style="display:none;">
+                        <button class="btn btn-info btn-sm" onclick="addCodeBox(functionInfoCode)">+ Function Info</button>
+                        <button class="btn btn-info btn-sm" onclick="addCodeBox(symbolicExecutionCode)">+ Symbolic Loop</button>
+                    </span>
+                    
+                    <button class="btn btn-success btn-sm float-right" onclick="runPythonCode()">Run Script</button>
+                </div>
+                <pre id="codeOutput" class="border mt-3 p-3 bg-light" style="min-height: 100px; border-radius: 5px;"></pre>
             </div>
         </div>
     </div>
 
-    <!-- Modal for displaying content -->
-    <div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-labelledby="modalLabel" aria-hidden="true">
-        <div class="modal-dialog" role="document">
+    <div class="modal fade" id="reasoningModal" tabindex="-1">
+        <div class="modal-dialog">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="modalLabel">Content</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="reasoningModalLabel">Reasoning</h5>
+                    <button class="close text-white" data-dismiss="modal">&times;</button>
                 </div>
-                <div class="modal-body" id="modalContent">
-                    <!-- Content will be loaded here -->
+                <div class="modal-body">
+                    <p id="reasoningContent" class="reasoning-text"></p>
                 </div>
-                <div class="modal-footer" id="modalFooter">
-                    <!-- Download button will be added here -->
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="fuzzModal" tabindex="-1">
+        <div class="modal-dialog modal-xl"> <div class="modal-content border-danger">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">Fuzzer Configuration: Register Mapping & Assembly Reference</h5>
+                    <button class="close text-white" data-dismiss="modal">&times;</button>
                 </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-5 border-right">
+                            <p>Targeting: <strong id="modal-func-name"></strong></p>
+                            <div class="alert alert-info py-2 small">
+                                <strong>Manual Mapping:</strong> Assign fuzzer data roles to registers based on the assembly code on the right.
+                            </div>
+                            
+                            <div class="reg-card">
+                                <span class="reg-name">RDI</span> (Arg 1)
+                                <select id="reg1" class="form-control form-control-sm">
+                                    <option value="ptr">Pointer to Fuzz Data</option>
+                                    <option value="len">Length of Fuzz Data</option>
+                                    <option value="val">Raw Integer Value</option>
+                                    <option value="null">Zero / NULL</option>
+                                </select>
+                            </div>
+                            <div class="reg-card">
+                                <span class="reg-name">RSI</span> (Arg 2)
+                                <select id="reg2" class="form-control form-control-sm">
+                                    <option value="len">Length of Fuzz Data</option>
+                                    <option value="ptr">Pointer to Fuzz Data</option>
+                                    <option value="val">Raw Integer Value</option>
+                                    <option value="null">Zero / NULL</option>
+                                </select>
+                            </div>
+                            <div class="reg-card">
+                                <span class="reg-name">RDX</span> (Arg 3)
+                                <select id="reg3" class="form-control form-control-sm">
+                                    <option value="null">Zero / NULL</option>
+                                    <option value="val">Raw Integer Value</option>
+                                    <option value="ptr">Pointer to Fuzz Data</option>
+                                </select>
+                            </div>
+                            <div class="reg-card">
+                                <span class="reg-name">RCX</span> (Arg 4)
+                                <select id="reg4" class="form-control form-control-sm"><option value="null">Zero</option><option value="val">Val</option></select>
+                            </div>
+                            <div class="reg-card">
+                                <span class="reg-name">R8</span> (Arg 5)
+                                <select id="reg5" class="form-control form-control-sm"><option value="null">Zero</option><option value="val">Val</option></select>
+                            </div>
+                            <div class="reg-card">
+                                <span class="reg-name">R9</span> (Arg 6)
+                                <select id="reg6" class="form-control form-control-sm"><option value="null">Zero</option><option value="val">Val</option></select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-7">
+                            <h6>Assembly Instructions</h6>
+                            <pre id="modal-asm-view" class="asm-view"></pre>
+                            <div class="mt-2 small text-muted">
+                                💡 <em>Check which registers are used for input (e.g., mov rax, [rdi]) to guide your mapping.</em>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light text-center">
+                    <button class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button class="btn btn-danger px-5" onclick="executeFuzz()">Launch AFL++ Engine</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">View</h5><button class="close" data-dismiss="modal">&times;</button></div>
+                <div class="modal-body text-center" id="modalContent"></div>
+                <div class="modal-footer" id="modalFooter"></div>
             </div>
         </div>
     </div>

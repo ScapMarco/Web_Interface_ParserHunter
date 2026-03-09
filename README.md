@@ -4,11 +4,12 @@ This project provides a simple web interface for classifying functions as a pars
 
 ## Features
 
-- Upload binary files for analysis.
-- Extracts function names and addresses from the binary.
-- Generates Control Flow Graphs (CFG) for each function and enriches it with node features.
-- Classifies functions using a pre-trained GNN model.
-- Provides downloadable links for CFG images and assembly code.
+- **Binary Analysis**: Upload ELF/PE binaries to extract function semantics via Radare2.
+- **GNN Classification**: Automatically identify "Parser" vs "Non-Parser" functions using a pre-trained Graph Neural Network.
+- **CFG Visualization**: Generate and view Control Flow Graphs (CFG) enriched with semantic node features.
+- **LLM Parser Audit**: Use the Groq API to perform automated reasoning over assembly code and function requirements to confirm parser identity and logic.
+- **Dynamic Fuzzing Engine**: Launch targeted AFL++ fuzzing sessions directly from the UI to exercise identified parser functions with custom register-to-argument mapping.
+- **Symbolic Execution**: Built-in console for custom Angr scripts and symbolic analysis.
 
 ## Technologies Used
 
@@ -16,11 +17,13 @@ This project provides a simple web interface for classifying functions as a pars
 - **Pandas**: A data manipulation and analysis library for Python, used for handling and processing data.
 - **Subprocess**: For running external scripts and commands, facilitating the execution of various analysis tools.
 - **Bootstrap**: For responsive web design, enhancing the user interface of the web application.
-- **PyTorch**: An open-source machine learning library, used for implementing the Graph Neural Network (GNN) model.
-- **PyTorch Geometric**: A library for deep learning on irregular structures like graphs, used for handling graph data.
+- **PyTorch & PyTorch Geometric**: Core GNN implementation for graph-based function classification.
 - **Angr**: A Python framework for analyzing binaries, used for extracting control flow graphs and function information.
 - **Radare2**: A set of utilities to examine binaries, used for identifying functions within the binary files.
+- **AFL++**: High-performance fuzzer used to dynamically exercise identified parsing functions.
 - **Asm2Vec**: A tool for generating embeddings from assembly code, used for enriching the features of the functions being analyzed.
+- **SAFE**: Another tool for generating embeddings from assembly code, providing additional features for function classification.
+- **Groq API**: High-speed LLM inference (Llama-3) used for assembly-level reasoning and parser identification.
 - **NetworkX**: A library for the creation, manipulation, and study of complex networks, used for handling control flow graphs.
 - **Matplotlib**: A plotting library for Python, used for visualizing control flow graphs.
 
@@ -46,6 +49,14 @@ CONDA_ENV_EXTRACT_LIST_FUNCTIONS = '/home/marcos/.conda/envs/test-3.9-env/bin/py
 CONDA_ENV_CREATE_GEOMETRIC_DATAS = '/home/marcos/anaconda3/envs/test-3.10.0-env/bin/python'
 CONDA_ENV_ASM2VEC_INFERENCE = '/home/marcos/anaconda3/envs/asm2vec/bin/python'
 ```
+
+### 3. Configure Environment Variables
+To enable the LLM Parser Identification feature, export your Groq API key:
+```bash
+export GROQ_API_KEY='your_groq_key_here'
+
+### 4. Run the Flask Application
+Run the app.py file to start the Flask web server:
 
 ## Screenshots
 

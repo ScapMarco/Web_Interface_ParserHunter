@@ -328,11 +328,14 @@ class MyGNNClassifier(BaseEstimator, ClassifierMixin, nn.Module):
                     self.num_heads
                 ])
 
+
     def predict_case_studies(self, test_data):
         """
-        Return per-graph predictions in a DataFrame.
+        Return per-graph predictions in a DataFrame, including GNN probabilities,
+        the binary LLM prediction, and the LLM reasoning string.
         """
         self.model.eval()
+        # batch_size=1 ensures we map metadata back to specific rows accurately
         test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
         results = []
 
@@ -343,10 +346,12 @@ class MyGNNClassifier(BaseEstimator, ClassifierMixin, nn.Module):
                 probabilities = F.softmax(output, dim=1).cpu().numpy()[0]
                 predicted = np.argmax(probabilities)
 
+                # Extract basic metadata
                 name = data.ref['name'][0] if 'name' in data.ref else 'N/A'
                 address = data.ref['address'][0] if 'address' in data.ref else 'N/A'
 
-                results.append({
+                # Build the row dictionary
+                row = {
                     'Name': name,
                     'Address': address,
                     'Predicted': int(predicted),
@@ -354,29 +359,41 @@ class MyGNNClassifier(BaseEstimator, ClassifierMixin, nn.Module):
                     'Probability_1': float(probabilities[1]),
                     'Num_Nodes': data.num_nodes,
                     'Num_Edges': data.num_edges
-                })
+                }
+
+                # --- Extract Binary LLM Prediction and Reasoning ---
+                # Check for llm_prediction (int)
+                if 'llm_prediction' in data.ref:
+                    val = data.ref['llm_prediction']
+                    # Handle PyG list-wrapping during batching
+                    row['llm_prediction'] = int(val[0]) if isinstance(val, (list, np.ndarray, torch.Tensor)) else int(val)
+                else:
+                    row['llm_prediction'] = 0
+
+                # Check for llm_reasoning (string)
+                if 'llm_reasoning' in data.ref:
+                    reason = data.ref['llm_reasoning']
+                    # Extract the string and strip any problematic newlines for CSV safety
+                    text = reason[0] if isinstance(reason, (list, np.ndarray)) else reason
+                    row['llm_reasoning'] = str(text).replace('\n', ' ').strip()
+                else:
+                    row['llm_reasoning'] = "No reasoning available."
+
+                results.append(row)
 
         return pd.DataFrame(results)
 
+
     # -------------------------
-    # score (sklearn compatibility)
+    # score (remains largely the same, but inherits the updated DF)
     # -------------------------
     def score(self, test_data, case_studies=False, filename=None):
         """
-        Evaluate the model on test_data.
-
-        Parameters:
-            test_data : list of PyG Data objects
-            case_studies : bool, if True, save per-graph predictions to CSV
-            filename : str or None, CSV path for case studies
-
-        Returns:
-            If case_studies=False: metric value (accuracy/precision/recall/f1)
-            If case_studies=True: pandas DataFrame with predictions
+        Evaluate the model on test_data and optionally save results.
         """
         if not case_studies:
-            # Standard evaluation
-            accuracy, precision, recall, f1, auc_roc = self.predict(test_data)
+            # Standard evaluation (accuracy, precision, etc.)
+            accuracy, precision, recall, f1, auc_roc = self.predict_metrics(test_data)
 
             metric_value = {
                 'accuracy': accuracy,
@@ -388,20 +405,22 @@ class MyGNNClassifier(BaseEstimator, ClassifierMixin, nn.Module):
             print(f"[Score] Metric ({self.metric}): {metric_value:.4f}")
             return metric_value
         else:
-            # Case studies evaluation
+            # Case studies evaluation - calls the updated predict_case_studies
             df = self.predict_case_studies(test_data)
-            # Round probabilities
+            
+            # Round probabilities for readability
             if "Probability_0" in df.columns and "Probability_1" in df.columns:
                 df["Probability_0"] = df["Probability_0"].round(3)
                 df["Probability_1"] = df["Probability_1"].round(3)
-            # Save to CSV if requested
+                
+            # Save to CSV if a filename is provided
             if filename:
                 parent_dir = os.path.dirname(filename)
-                
-                # Create parent directory if it doesn't exist
                 if parent_dir:
                     os.makedirs(parent_dir, exist_ok=True)
 
                 print(f"[Score] Saving case studies to CSV: {filename}")
+                # We use index=False to keep the CSV clean
                 df.to_csv(filename, index=False)
+                
             return df
